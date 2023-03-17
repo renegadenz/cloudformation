@@ -1,0 +1,70 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This AWS CloudFormation template deploys a basic Network Load Balancer. It includes a Network Load Balancer, a Listener, and a Target Group.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID where the Network Load Balancer should be deployed
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: List of subnet IDs where the Network Load Balancer should be deployed
+  TargetGroupName:
+    Type: String
+    Description: Name for the target group
+  ListenerPort:
+    Type: Number
+    Description: Port number for the listener
+    Default: 80
+  HealthCheckProtocol:
+    Type: String
+    Default: TCP
+    Description: Protocol used for health checks
+  HealthCheckPort:
+    Type: Number
+    Default: 80
+    Description: Port number used for health checks
+  HealthCheckPath:
+    Type: String
+    Default: /
+    Description: URL path used for health checks
+
+Resources:
+  NLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: NetworkLoadBalancer
+      Type: network
+      Scheme: internal
+      Subnets: !Ref SubnetIds
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Ref TargetGroupName
+      Port: !Ref ListenerPort
+      Protocol: TCP
+      TargetType: ip
+      VpcId: !Ref VpcId
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      HealthCheckProtocol: !Ref HealthCheckProtocol
+      HealthCheckPort: !Ref HealthCheckPort
+      HealthCheckPath: !Ref HealthCheckPath
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref NLB
+      Protocol: TCP
+      Port: !Ref ListenerPort
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+Outputs:
+  LoadBalancerDNSName:
+    Value: !GetAtt NLB.DNSName
+    Export: !Sub "${AWS::StackName}-NLBDNSName"

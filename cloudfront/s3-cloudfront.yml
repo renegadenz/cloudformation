@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This CloudFormation template creates an S3 bucket for hosting a website, and configures a CloudFront distribution for 
+  content delivery. The S3 bucket is accessible over the Internet with public read access, and is configured to serve 
+  a custom index and error document. The CloudFront distribution uses the S3 bucket as the origin, and redirects HTTP 
+  requests to HTTPS. Query strings and cookies are not forwarded, and the caching behavior is configurable.
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: The name of the S3 bucket to create.
+  IndexDocument:
+    Type: String
+    Description: The name of the index document for the S3 bucket website.
+  ErrorDocument:
+    Type: String
+    Description: The name of the error document for the S3 bucket website.
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: !Ref IndexDocument
+        ErrorDocument: !Ref ErrorDocument
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: !Ref IndexDocument
+        Origins:
+          - DomainName: !GetAtt Bucket.DomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          MinTTL: 0
+          MaxTTL: 31536000
+          DefaultTTL: 86400
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This CloudFormation template creates an S3 bucket for hosting a website, and configures a CloudFront distribution for 
+  content delivery. The S3 bucket is accessible over the Internet with public read access, and is configured to serve 
+  a custom index and error document. The CloudFront distribution uses the S3 bucket as the origin, and redirects HTTP 
+  requests to HTTPS. Query strings and cookies are not forwarded, and the caching behavior is configurable.
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: The name of the S3 bucket to create.
+  IndexDocument:
+    Type: String
+    Description: The name of the index document for the S3 bucket website.
+  ErrorDocument:
+    Type: String
+    Description: The name of the error document for the S3 bucket website.
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: !Ref IndexDocument
+        ErrorDocument: !Ref ErrorDocument
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: !Ref IndexDocument
+        Origins:
+          - DomainName: !GetAtt Bucket.DomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          MinTTL: 0
+          MaxTTL: 31536000
+          DefaultTTL: 86400

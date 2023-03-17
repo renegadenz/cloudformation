@@ -1,0 +1,75 @@
+Description: >
+  This CloudFormation template creates a public Application Load Balancer (ALB) in an existing VPC.
+  The ALB is placed in public subnets and is accessible from the Internet.
+  The ALB is associated with a target group that contains the instances or IP addresses of backend servers.
+  The ALB listens on port 443 and forwards requests to the target group.
+  HTTPS is enabled using a certificate from AWS Certificate Manager.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of the VPC where the ALB will be deployed.
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The IDs of the public subnets where the ALB will be deployed.
+  ServiceName:
+    Type: String
+    Description: The name of the service that will use the ALB.
+  CertificateArn:
+    Type: String
+    Description: The ARN of the ACM certificate to be used for HTTPS.
+
+Resources:
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join ['', [!Ref ServiceName, '-alb']]
+      Scheme: internet-facing
+      Type: application
+      Subnets: !Ref PublicSubnetIds
+      SecurityGroups: [!Ref ALBSecurityGroup]
+      Tags:
+        - Key: Name
+          Value: !Join ['', [!Ref ServiceName, '-alb']]
+
+  ALBListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join ['', [!Ref ServiceName, '-tg']]
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /health
+      Matcher: { HttpCode: '200' }
+      TargetType: ip
+      Tags:
+        - Key: Name
+          Value: !Join ['', [!Ref ServiceName, '-tg']]
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB security group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Join ['', [!Ref ServiceName, '-sg']]]

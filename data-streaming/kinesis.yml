@@ -1,0 +1,66 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A demo of Kinesis Data Streams and Firehose using CloudFormation. Creates a Kinesis Data Stream, a Kinesis Firehose Delivery Stream, and an S3 bucket for storing the processed data.
+
+Resources:
+  KinesisDataStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      Name: MyKinesisDataStream
+      ShardCount: 1
+    Metadata:
+      Description: 'A Kinesis Data Stream to ingest streaming data.'
+
+  KinesisFirehoseDeliveryStream:
+    Type: 'AWS::KinesisFirehose::DeliveryStream'
+    Properties:
+      DeliveryStreamName: MyKinesisFirehoseDeliveryStream
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Sub 'arn:aws:s3:::${S3Bucket}'
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 5
+        CompressionFormat: 'UNCOMPRESSED'
+        Prefix: 'firehose/'
+        ErrorOutputPrefix: 'error/'
+        S3BackupMode: 'Enabled'
+        RoleARN: !GetAtt FirehoseRole.Arn
+    Metadata:
+      Description: 'A Kinesis Firehose Delivery Stream that delivers data from the Kinesis Data Stream to an S3 bucket.'
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: my-kinesis-firehose-s3-bucket
+    Metadata:
+      Description: 'An S3 bucket to store the processed data from the Kinesis Firehose Delivery Stream.'
+
+  FirehoseRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 'firehose.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        - PolicyName: FirehosePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3Bucket}'
+                  - !Sub 'arn:aws:s3:::${S3Bucket}/*'
+    Metadata:
+      Description: 'An IAM Role that grants Kinesis Firehose the necessary permissions to deliver data to the S3 bucket.'

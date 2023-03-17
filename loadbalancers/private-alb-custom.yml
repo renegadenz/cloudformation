@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This AWS CloudFormation template deploys a basic HTTP over port 8080 Application Load Balancer. It includes an Amazon Elastic Compute Cloud (EC2) Security Group for the load balancer, an Application Load Balancer, a Default Target Group, and a Listener. 
+The template also creates a DNS entry for the load balancer, and provides outputs for the load balancer's Canonical name, name, Amazon Resource Name (ARN), Security Group, and Listener Port. The user can provide parameters such as the Account name, Business Function, Stack version, Ingress Source IP, and Subdomain for use within the account.
+This CloudFormation template can be used to automate the deployment of a simple HTTP application using a load balancer architecture.
+
+
+Parameters:
+  Account:
+    Type: String
+    Description: Account name
+  Function:
+    Type: String
+    Description: Business Function
+  Version:
+    Type: String
+    Description: Stack version which allows for multiple deployments
+  IngressSourceIP:
+    Type: String
+    Description: Source IP connecting to the load balancer
+  Subdomain: 
+    Type: String
+    Description: Subdomain used within the account
+
+Resources:
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB Security Group
+      VpcId: !ImportValue VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${Function}-${Version}-${Account}'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: !Ref IngressSourceIP
+          Description: This allows access to services on 8080
+
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      SecurityGroups: [!Ref AlbSecurityGroup]
+      Name: !Sub '${Function}-${Version}-${Account}'
+      SubnetMappings:
+        - SubnetId: !ImportValue LogicSubnet1
+        - SubnetId: !ImportValue LogicSubnet2
+        - SubnetId: !ImportValue LogicSubnet3
+      Scheme: internal
+
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${Function}-${Version}-${Account}'
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !ImportValue VpcId
+
+  AlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+      LoadBalancerArn: !Ref Alb
+      Port: 8080
+      Protocol: HTTP
+
+  AlbDns:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Comment: User friendly name for ALB access
+      HostedZoneId: !ImportValue '${Account}-ZoneID'
+      Name: !Sub '${Function}-${Version}.${Account}.${Subdomain}'
+      Type: CNAME
+      TTL: '900'
+      ResourceRecords:
+        - !GetAtt Alb.DNSName
+
+Outputs:
+  AlbCanonicalName:
+    Description: ALB Canonical name
+    Value: !GetAtt Alb.DNSName
+    Export: 
+      Name: !Sub '${Function}-${Version}-${Account}-alb-dns'
+  AlbName:
+    Description: Application Load Balancer Name
+    Value: !GetAtt Alb.LoadBalancerFullName
+    Export: 
+      Name: !Sub '${Function}-${Version}-${Account}-alb'
+  AlbArn:
+    Description: Application Load Balancer Name
+    Value: !Ref Alb
+    Export: 
+      Name: !Sub '${Function}-${Version}-${Account}-alb-arn'      
+  AlbSecurityGroup:
+    Description: Application Load Balancer Security Group
+    Value: !Ref AlbSecurityGroup
+    Export:
+      Name: !Sub '${Function}-${Version}-${Account}-alb-secgroup'
+  AlbListernerName:
+    Description: Application Load Balancer ListerPort
+    Value: !Ref 'AlbListener'
+    Export:
+      Name: !Sub '${Function}-${Version}-${Account}-alb-listener'

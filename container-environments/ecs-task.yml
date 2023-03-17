@@ -1,0 +1,45 @@
+Parameters:
+  ECRRepository:
+    Type: String
+    Description: The name of the ECR repository containing the Docker image.
+  ContainerPort:
+    Type: Number
+    Description: The container port to be exposed by the task.
+
+Resources:
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: ECSTaskFamily
+      RequiresCompatibilities:
+        - EC2
+      ExecutionRoleArn: !Ref ECSTaskExecutionRole
+      TaskRoleArn: !Ref ECSTaskRole
+      ContainerDefinitions:
+        - Name: Container
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}:latest"
+          Memory: 300
+          Cpu: 256
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              Protocol: tcp
+          Essential: true
+      Description: Task Definition for ECR-based ECS deployment
+
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: ECSService
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 2
+      LaunchType: EC2
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      LoadBalancers:
+        - TargetGroupArn: !Ref TargetGroup
+          ContainerName: Container
+          ContainerPort: !Ref ContainerPort
+    Metadata:
+      Description: ECS Service for ECR-based deployment
