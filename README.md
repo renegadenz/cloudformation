@@ -4,12 +4,12 @@ This repository, created by James Mead, a DevOps Engineer, contains a collection
 ## Overview
 The following AWS resources are provisioned using the templates in this repository:
 
-Application Load Balancer: A highly available and scalable load balancer for routing traffic to your applications running on Amazon EC2 instances or containers.
-Amazon Elastic Kubernetes Service (EKS): A managed Kubernetes service that makes it easy to deploy, manage, and scale containerized applications using Kubernetes on AWS.
-Amazon Elastic Container Service (ECS): A fully managed container orchestration service that makes it easy to run, stop, and manage Docker containers on a cluster of Amazon EC2 instances.
-Amazon Managed Streaming for Apache Kafka (MSK): A fully managed service that makes it easy to build and run applications that use Apache Kafka to process streaming data.
-Amazon Kinesis: A fully managed service for real-time data processing and analytics.
-Amazon CloudFront and Amazon S3: A content delivery network (CDN) that securely delivers data, videos, applications, and APIs to customers globally with low latency, high transfer speeds, all backed by AWS Shield for DDoS protection.
+* Application Load Balancer: A highly available and scalable load balancer for routing traffic to your applications running on Amazon EC2 instances or containers.
+* Amazon Elastic Kubernetes Service (EKS): A managed Kubernetes service that makes it easy to deploy, manage, and scale containerized applications using Kubernetes on AWS.
+* Amazon Elastic Container Service (ECS): A fully managed container orchestration service that makes it easy to run, stop, and manage Docker containers on a cluster of Amazon EC2 instances.
+* Amazon Managed Streaming for Apache Kafka (MSK): A fully managed service that makes it easy to build and run applications that use Apache Kafka to process streaming data.
+* Amazon Kinesis: A fully managed service for real-time data processing and analytics.
+* Amazon CloudFront and Amazon S3: A content delivery network (CDN) that securely delivers data, videos, applications, and APIs to customers globally with low latency, high transfer speeds, all backed by AWS Shield for DDoS protection.
 
 ## How to use
 To deploy any of the templates in this repository, you will need to have an AWS account and access to the AWS CloudFormation service. You can use the AWS Management Console or the AWS CLI to deploy the templates.
