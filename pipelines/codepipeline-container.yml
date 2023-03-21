@@ -14,7 +14,12 @@ Parameters:
   CodeBuildImage:
     Type: String
     Default: 'aws/codebuild/standard:5.0'
-
+  CodeDeployApplication:
+    Type: String
+    Description: The name of the CodeDeploy Application
+  CodeDeployDeploymentGroup:
+    Type: String
+    Description: The name of the CodeDeploy Deployment Group
 Resources:
 
   ArtifactBucket:
@@ -184,4 +189,18 @@ Resources:
                 - Name: BuildOutput
               Configuration:
                 ProjectName: !Ref CodeBuildProject
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: CodeDeployToECS
+              InputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ApplicationName: !Ref CodeDeployApplication
+                DeploymentGroupName: !Ref CodeDeployDeploymentGroup
               RunOrder: 1

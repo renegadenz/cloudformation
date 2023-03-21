@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  ParentImageId:
+    Type: AWS::EC2::Image::Id
+    Description: The ID of the parent AMI for your region
+
+Resources:
+  ImageBuilderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - imagebuilder.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilder
+
+  ImageBuilderInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ImageBuilderRole
+
+  ImageBuilderComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: InstallDockerComponent
+      Version: 1.0.0
+      Platform: Linux
+      Data: |
+        name: InstallDockerComponent
+        description: A custom component that installs Docker
+        schemaVersion: 1.0
+
+        phases:
+          - name: build
+            steps:
+              - name: InstallDocker
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - |
+                      #!/bin/bash
+                      sudo amazon-linux-extras install docker -y
+                      sudo systemctl enable docker
+                      sudo systemctl start docker
+                      sudo usermod -aG docker ec2-user
+
+  ImageBuilderRecipe:
+    Type: AWS::ImageBuilder::ImageRecipe
+    Properties:
+      Name: DockerImageRecipe
+      Version: 1.0.0
+      ParentImage: !Ref ParentImageId
+      Components:
+        - ComponentArn: !Ref ImageBuilderComponent
+
+  ImageBuilderInfrastructureConfiguration:
+    Type: AWS::ImageBuilder::InfrastructureConfiguration
+    Properties:
+      Name: InfrastructureConfiguration
+      InstanceProfileName: !Ref ImageBuilderInstanceProfile
+
+  ImageBuilderPipeline:
+    Type: AWS::ImageBuilder::ImagePipeline
+    Properties:
+      Name: DockerImagePipeline
+      ImageRecipeArn: !Ref ImageBuilderRecipe
+      InfrastructureConfigurationArn: !Ref ImageBuilderInfrastructureConfiguration
+      Schedule:
+        PipelineExecutionStartCondition: 'EXPRESSION_MATCH_AND_DEPENDENCY_UPDATES_AVAILABLE'
+        ScheduleExpression: 'cron(0 0 * * ? *)'  # Builds the image daily
