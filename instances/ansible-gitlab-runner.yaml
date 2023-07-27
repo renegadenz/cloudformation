@@ -95,10 +95,14 @@ Resources:
           sudo useradd --comment 'GitLab Runner' --create-home gitlab-runner --shell /bin/bash
           sudo gitlab-runner install --user=gitlab-runner --working-directory=/home/gitlab-runner
           sudo gitlab-runner start
-          yum install -y python39  # Install Python 3.9
-          yum install -y ansible    # Install Ansible
-          echo 'alias python=python3.9' >> /etc/bashrc  # Create an alias for Python 3.9
-          source /etc/bashrc  # Load the updated bashrc
+          sudo yum install -y python39 
+          curl -O https://bootstrap.pypa.io/get-pip.py
+          sudo python3.9 get-pip.py  
+          sudo rm get-pip.py
+          sudo pip3 install ansible  # Install Ansible via pip
+          echo 'alias python=python3.9' >> /home/ec2-user/.bashrc  # Create an alias for Python 3.9
+          echo 'alias pip=pip3' >> /home/ec2-user/.bashrc  
+          source /home/ec2-user/.bashrc 
       Tags:
         - Key: Owner
           Value: !Ref OwnerTag
