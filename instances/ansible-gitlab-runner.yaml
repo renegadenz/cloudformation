@@ -104,4 +104,5 @@ Resources:
           Value: !Ref OwnerTag
         - Key: Function
           Value: !Ref FunctionTag
-
+        - Key: NMame
+          Value: ansible-gitlab-runner
