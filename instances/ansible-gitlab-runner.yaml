@@ -1,0 +1,107 @@
+Parameters:
+  FunctionInstanceType:
+    Type: String
+    AllowedValues:
+      - t3a.small
+      - t3a.medium
+      - t3a.large
+    Description: Please select an instance type within the allowed list
+    Default: t3a.small
+
+  FunctionSubnetId:
+    Description: Select a Subnet from the List
+    Type: AWS::EC2::Subnet::Id
+
+  FunctionImageId:
+    Description: Enter the ID of the Amazon Machine Image (AMI) you want to use
+    Type: AWS::EC2::Image::Id
+    Default: ami-00ffa321011c2611f # Amazon provided instance ID
+  DiskType: 
+    Type: String
+    AllowedValues:
+    - gp3
+    - gp2
+    - io1
+    - sc1
+    - st1
+    - standard
+    Default: gp3
+  DiskSize:
+    Type: String
+    Default: 30
+  VpcId:
+    Type: String
+  OwnerTag:
+    Type: String
+    Description: Specify the owner of the EC2 instance
+  FunctionTag:
+    Type: String
+    Description: What is the function of this instance?
+
+Resources:
+  AnsibleSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Ref: VpcId
+      GroupDescription: Ansible Security Group
+
+  AnsibleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AnsibleRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM 
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess  
+        - arn:aws:iam::aws:policy/IAMFullAccess 
+        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess 
+
+  AnsibleProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref AnsibleRole
+
+  AnsibleHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      SecurityGroupIds:
+        - !Ref AnsibleSG
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeType: !Ref DiskType
+            DeleteOnTermination: true
+            VolumeSize: !Ref DiskSize
+      InstanceType: !Ref FunctionInstanceType
+      SubnetId: 
+        !Ref FunctionSubnetId
+      ImageId: !Ref FunctionImageId
+      IamInstanceProfile: !Ref AnsibleProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo curl -L --output /usr/local/bin/gitlab-runner https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-amd64
+          sudo chmod +x /usr/local/bin/gitlab-runner
+          sudo useradd --comment 'GitLab Runner' --create-home gitlab-runner --shell /bin/bash
+          sudo gitlab-runner install --user=gitlab-runner --working-directory=/home/gitlab-runner
+          sudo gitlab-runner start
+          yum install -y python39  # Install Python 3.9
+          yum install -y ansible    # Install Ansible
+          echo 'alias python=python3.9' >> /etc/bashrc  # Create an alias for Python 3.9
+          source /etc/bashrc  # Load the updated bashrc
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTag
+        - Key: Function
+          Value: !Ref FunctionTag
+

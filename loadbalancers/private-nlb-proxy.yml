@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Network Load Balancer with 2 listeners and target groups
+
+Parameters:
+  ALBArn1:
+    Description: The ARN of the first Application Load Balancer
+    Type: String
+
+  ALBArn2:
+    Description: The ARN of the second Application Load Balancer
+    Type: String
+
+  VPCId:
+    Description: The VPC ID where the target groups are located
+    Type: AWS::EC2::VPC::Id
+
+  SubnetId1:
+    Description: The first subnet ID for the Network Load Balancer
+    Type: AWS::EC2::Subnet::Id
+
+  SubnetId2:
+    Description: The second subnet ID for the Network Load Balancer
+    Type: AWS::EC2::Subnet::Id
+  
+  SubnetId3:
+    Description: The third subnet ID for the Network Load Balancer
+    Type: AWS::EC2::Subnet::Id
+
+  Account:
+    Description: AWS account number where resources will be created
+    Type: String
+
+  Version:
+    Description: A version number for the stack
+    Type: String
+
+Resources:
+  # Network Load Balancer
+  NetworkLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Type: network
+      Name: !Sub '${Account}-nlb-${Version}'
+      Subnets:
+        - !Ref SubnetId1
+        - !Ref SubnetId2
+        - !Ref SubnetId3
+
+  # Listener for port 8082
+  Listener8082:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 8082
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup1
+
+  # Listener for port 8083
+  Listener8083:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 8083
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup2
+
+  # Target group 1
+  TargetGroup1:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      TargetType: alb
+      Protocol: TCP
+      Port: 8080
+      VpcId: !Ref VPCId
+      Targets:
+        - Id: !Ref ALBArn1
+          Port: 8080
+
+  # Target group 2
+  TargetGroup2:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      TargetType: alb
+      Protocol: TCP
+      Port: 8080
+      VpcId: !Ref VPCId
+      Targets:
+        - Id: !Ref ALBArn2
+          Port: 8080
