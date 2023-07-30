@@ -36,7 +36,8 @@ Parameters:
     Default: 30
 
   VpcId:
-    Type: String
+    Type: AWS::EC2::VPC
+    Description: Select a VPC from the list
 
   OwnerTag:
     Type: String
@@ -51,6 +52,8 @@ Metadata:
     ParameterLabels:
       FunctionImageId:
         default: "Select the OS for the AMI"
+      VpcId:
+        default: "Select a VPC"
 
 Resources:
   SingleInstanceSG:
