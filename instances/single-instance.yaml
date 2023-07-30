@@ -16,9 +16,6 @@ Parameters:
     Description: Enter the ID of the Amazon Machine Image (AMI) you want to use
     Type: AWS::EC2::Image::Id
     Default: ami-00ffa321011c2611f # Amazon provided instance ID
-    AllowedValues:
-      - ami-00ffa321011c2611f # Amazon Linux
-      - ami-0d5c8edc10c17ec35 # Redhat Linux
 
   DiskType: 
     Type: String
@@ -36,7 +33,7 @@ Parameters:
     Default: 30
 
   VpcId:
-    Type: AWS::EC2::VPC
+    Type: String
     Description: Select a VPC from the list
 
   OwnerTag:

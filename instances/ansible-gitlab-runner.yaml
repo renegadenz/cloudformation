@@ -30,7 +30,7 @@ Parameters:
     Type: String
     Default: 30
   VpcId:
-    Type: AWS::EC2::VPC
+    Type: String
     Description: Select a VPC from the list
   OwnerTag:
     Type: String
