@@ -16,37 +16,51 @@ Parameters:
     Description: Enter the ID of the Amazon Machine Image (AMI) you want to use
     Type: AWS::EC2::Image::Id
     Default: ami-00ffa321011c2611f # Amazon provided instance ID
+    AllowedValues:
+      - ami-00ffa321011c2611f # Amazon Linux
+      - ami-0d5c8edc10c17ec35 # Redhat Linux
+
   DiskType: 
     Type: String
     AllowedValues:
-    - gp3
-    - gp2
-    - io1
-    - sc1
-    - st1
-    - standard
+      - gp3
+      - gp2
+      - io1
+      - sc1
+      - st1
+      - standard
     Default: gp3
+
   DiskSize:
     Type: String
     Default: 30
+
   VpcId:
     Type: String
+
   OwnerTag:
     Type: String
     Description: Specify the owner of the EC2 instance
+
   FunctionTag:
     Type: String
     Description: What is the function of this instance?
 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterLabels:
+      FunctionImageId:
+        default: "Select the OS for the AMI"
+
 Resources:
-  AnsibleSG:
+  SingleInstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
       VpcId:
         Ref: VpcId
-      GroupDescription: Ansible Security Group
+      GroupDescription: Single Instance Security Group
 
-  AnsibleRole:
+  SingleInstanceRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: AnsibleRole
@@ -60,22 +74,19 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM 
-        - arn:aws:iam::aws:policy/AmazonEC2FullAccess  
-        - arn:aws:iam::aws:policy/IAMFullAccess 
-        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess 
 
-  AnsibleProfile:
+  SingleProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Path: /
       Roles:
-        - !Ref AnsibleRole
+        - !Ref SingleInstanceRole
 
-  AnsibleHost:
+  SingleHost:
     Type: AWS::EC2::Instance
     Properties:
       SecurityGroupIds:
-        - !Ref AnsibleSG
+        - !Ref SingleInstanceSG
       BlockDeviceMappings:
         - DeviceName: "/dev/xvda"
           Ebs:
@@ -86,25 +97,7 @@ Resources:
       SubnetId: 
         !Ref FunctionSubnetId
       ImageId: !Ref FunctionImageId
-      IamInstanceProfile: !Ref AnsibleProfile
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          sudo curl -L --output /usr/local/bin/gitlab-runner https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-amd64
-          sudo chmod +x /usr/local/bin/gitlab-runner
-          sudo useradd --comment 'GitLab Runner' --create-home gitlab-runner --shell /bin/bash
-          sudo gitlab-runner install --user=gitlab-runner --working-directory=/home/gitlab-runner
-          sudo gitlab-runner start
-          sudo yum install -y python39 
-          curl -O https://bootstrap.pypa.io/get-pip.py
-          sudo python3.9 get-pip.py  
-          sudo rm get-pip.py
-          sudo pip3 install ansible  # Install Ansible via pip
-          sudo pip3 install boto3
-          echo 'alias python=python3.9' >> /home/ec2-user/.bashrc  # Create an alias for Python 3.9
-          echo 'alias pip=pip3' >> /home/ec2-user/.bashrc  
-          source /home/ec2-user/.bashrc 
-          sudo yum install git
+      IamInstanceProfile: !Ref SingleProfile
       Tags:
         - Key: Owner
           Value: !Ref OwnerTag
@@ -112,4 +105,3 @@ Resources:
           Value: !Ref FunctionTag
         - Key: Name
           Value: !Sub ${AWS::StackName}
-
