@@ -61,7 +61,6 @@ Resources:
       GroupDescription: Single Instance Security Group
 
   SingleInstanceRole:
-    Type: AWS::IAM::Role
     Properties:
       RoleName: AnsibleRole
       Path: /
