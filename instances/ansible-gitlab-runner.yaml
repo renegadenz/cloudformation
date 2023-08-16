@@ -50,7 +50,6 @@ Resources:
   AnsibleRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: AnsibleRole
       Path: /
       AssumeRolePolicyDocument:
         Version: "2012-10-17"

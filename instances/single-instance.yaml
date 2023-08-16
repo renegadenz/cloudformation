@@ -62,7 +62,6 @@ Resources:
 
   SingleInstanceRole:
     Properties:
-      RoleName: AnsibleRole
       Path: /
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
