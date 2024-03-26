@@ -1,3 +1,7 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  CloudFormation template for provisioning an EC2 instance with customizable parameters.
+
 Parameters:
   FunctionInstanceType:
     Type: String
@@ -5,19 +9,19 @@ Parameters:
       - t3a.small
       - t3a.medium
       - t3a.large
-    Description: Please select an instance type within the allowed list
+    Description: Please select an instance type within the allowed list.
     Default: t3a.small
 
   FunctionSubnetId:
-    Description: Select a Subnet from the List
     Type: AWS::EC2::Subnet::Id
+    Description: Select a Subnet from the list.
 
   FunctionImageId:
-    Description: Enter the ID of the Amazon Machine Image (AMI) you want to use
     Type: AWS::EC2::Image::Id
-    Default: ami-00ffa321011c2611f # Amazon provided instance ID
+    Description: Enter the ID of the Amazon Machine Image (AMI) you want to use.
+    Default: ami-00ffa321011c2611f # Amazon provided instance ID.
 
-  DiskType: 
+  DiskType:
     Type: String
     AllowedValues:
       - gp3
@@ -27,18 +31,20 @@ Parameters:
       - st1
       - standard
     Default: gp3
+    Description: Specify the disk type for the instance.
 
   DiskSize:
     Type: String
     Default: 30
+    Description: Specify the disk size in GB.
 
   VpcId:
-    Type: String
-    Description: Select a VPC from the list
+    Type: AWS::EC2::VPC::Id
+    Description: Select a VPC from the list.
 
   OwnerTag:
     Type: String
-    Description: Specify the owner of the EC2 instance
+    Description: Specify the owner of the EC2 instance.
 
   FunctionTag:
     Type: String
@@ -56,11 +62,11 @@ Resources:
   SingleInstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      VpcId:
-        Ref: VpcId
+      VpcId: !Ref VpcId
       GroupDescription: Single Instance Security Group
 
   SingleInstanceRole:
+    Type: AWS::IAM::Role
     Properties:
       Path: /
       AssumeRolePolicyDocument:
@@ -71,7 +77,7 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM 
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
 
   SingleProfile:
     Type: AWS::IAM::InstanceProfile
@@ -92,8 +98,7 @@ Resources:
             DeleteOnTermination: true
             VolumeSize: !Ref DiskSize
       InstanceType: !Ref FunctionInstanceType
-      SubnetId: 
-        !Ref FunctionSubnetId
+      SubnetId: !Ref FunctionSubnetId
       ImageId: !Ref FunctionImageId
       IamInstanceProfile: !Ref SingleProfile
       Tags:
