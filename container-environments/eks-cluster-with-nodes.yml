@@ -1,6 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS EKS Cluster and Node Group Deployment
-
 Parameters:
   ClusterName:
     Type: String
@@ -29,14 +28,13 @@ Parameters:
     Description: Minimum number of worker nodes.
   KubernetesVersion:
     Type: String
-    Default: "1.21"
+    Default: '1.21'
     Description: The version of Kubernetes to deploy on the EKS cluster.
-
 Resources:
   EKSClusterRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${ClusterName}-eks-cluster-role"
+      RoleName: !Sub ${ClusterName}-eks-cluster-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -47,7 +45,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
         - arn:aws:iam::aws:policy/AmazonEKSVPCResourceController
-
   EKSCluster:
     Type: AWS::EKS::Cluster
     Properties:
@@ -56,11 +53,10 @@ Resources:
       Version: !Ref KubernetesVersion
       ResourcesVpcConfig:
         SubnetIds: !Ref SubnetIds
-
   EKSNodeGroupRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${ClusterName}-eks-nodegroup-role"
+      RoleName: !Sub ${ClusterName}-eks-nodegroup-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -72,8 +68,8 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
         - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
-
   EKSNodeGroup:
+    DependsOn: EKSCluster
     Type: AWS::EKS::Nodegroup
     Properties:
       ClusterName: !Ref ClusterName
@@ -86,7 +82,6 @@ Resources:
         MinSize: !Ref MinSize
       InstanceTypes:
         - !Ref InstanceType
-
 Outputs:
   ClusterId:
     Description: The ID of the EKS Cluster.
