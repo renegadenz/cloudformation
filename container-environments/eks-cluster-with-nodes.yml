@@ -30,11 +30,19 @@ Parameters:
     Type: String
     Default: '1.21'
     Description: The version of Kubernetes to deploy on the EKS cluster.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC ID where the cluster and node group will be deployed.
 Resources:
+  ClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for EKS Cluster
+      VpcId: !Ref VpcId
+  
   EKSClusterRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${ClusterName}-eks-cluster-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -45,6 +53,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
         - arn:aws:iam::aws:policy/AmazonEKSVPCResourceController
+  
   EKSCluster:
     Type: AWS::EKS::Cluster
     Properties:
@@ -53,10 +62,12 @@ Resources:
       Version: !Ref KubernetesVersion
       ResourcesVpcConfig:
         SubnetIds: !Ref SubnetIds
+        SecurityGroupIds:
+          - !Ref ClusterSecurityGroup
+  
   EKSNodeGroupRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${ClusterName}-eks-nodegroup-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -68,12 +79,12 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
         - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+  
   EKSNodeGroup:
-    DependsOn: EKSCluster
     Type: AWS::EKS::Nodegroup
     Properties:
       ClusterName: !Ref ClusterName
-      NodegroupName: !Ref NodeGroupName
+      NodeGroupName: !Ref NodeGroupName
       NodeRole: !GetAtt EKSNodeGroupRole.Arn
       Subnets: !Ref SubnetIds
       ScalingConfig:
@@ -90,5 +101,5 @@ Outputs:
     Description: The endpoint for your EKS Kubernetes API.
     Value: !GetAtt EKSCluster.Endpoint
   ClusterSecurityGroupId:
-    Description: The security group ID attached to the EKS cluster.
-    Value: !GetAtt EKSCluster.ResourcesVpcConfig.SecurityGroupIds
+    Description: The security group ID associated with the EKS cluster.
+    Value: !Ref ClusterSecurityGroup
