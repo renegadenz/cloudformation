@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS EKS Cluster and Node Group Deployment
+
 Parameters:
   ClusterName:
     Type: String
@@ -32,14 +33,9 @@ Parameters:
     Description: The version of Kubernetes to deploy on the EKS cluster.
   VpcId:
     Type: AWS::EC2::VPC::Id
-    Description: The VPC ID where the cluster and node group will be deployed.
+    Description: The VPC ID where the EKS cluster and node group will be deployed.
+
 Resources:
-  ClusterSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for EKS Cluster
-      VpcId: !Ref VpcId
-  
   EKSClusterRole:
     Type: AWS::IAM::Role
     Properties:
@@ -53,7 +49,13 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
         - arn:aws:iam::aws:policy/AmazonEKSVPCResourceController
-  
+
+  EKSClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for EKS Cluster
+      VpcId: !Ref VpcId
+
   EKSCluster:
     Type: AWS::EKS::Cluster
     Properties:
@@ -63,8 +65,8 @@ Resources:
       ResourcesVpcConfig:
         SubnetIds: !Ref SubnetIds
         SecurityGroupIds:
-          - !Ref ClusterSecurityGroup
-  
+          - !Ref EKSClusterSecurityGroup
+
   EKSNodeGroupRole:
     Type: AWS::IAM::Role
     Properties:
@@ -79,12 +81,13 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
         - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
-  
+
   EKSNodeGroup:
     Type: AWS::EKS::Nodegroup
+    DependsOn: EKSCluster
     Properties:
       ClusterName: !Ref ClusterName
-      NodeGroupName: !Ref NodeGroupName
+      NodegroupName: !Ref NodeGroupName
       NodeRole: !GetAtt EKSNodeGroupRole.Arn
       Subnets: !Ref SubnetIds
       ScalingConfig:
@@ -93,6 +96,7 @@ Resources:
         MinSize: !Ref MinSize
       InstanceTypes:
         - !Ref InstanceType
+
 Outputs:
   ClusterId:
     Description: The ID of the EKS Cluster.
@@ -101,5 +105,5 @@ Outputs:
     Description: The endpoint for your EKS Kubernetes API.
     Value: !GetAtt EKSCluster.Endpoint
   ClusterSecurityGroupId:
-    Description: The security group ID associated with the EKS cluster.
-    Value: !Ref ClusterSecurityGroup
+    Description: The security group ID attached to the EKS cluster.
+    Value: !Ref EKSClusterSecurityGroup
