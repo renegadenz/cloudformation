@@ -1,9 +1,29 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: CloudFormation Template for a vanilla CodeCommit repository
+Description: CloudFormation Template for a vanilla CodeCommit repository with enhanced tagging
 
 Parameters:
   RepositoryName:
     Description: "The name of the CodeCommit repository to create"
+    Type: String
+
+  Owner:
+    Description: "The owner of the repository"
+    Type: String
+
+  CostCentre:
+    Description: "The cost centre associated with the repository"
+    Type: String
+
+  Environment:
+    Description: "The environment the repository belongs to (e.g., Dev, Test, Prod)"
+    Type: String
+
+  Confidentiality:
+    Description: "The confidentiality level of the repository (e.g., Public, Internal, Confidential)"
+    Type: String
+
+  ApplicationID:
+    Description: "The application ID associated with this repository"
     Type: String
 
 Resources:
@@ -11,14 +31,19 @@ Resources:
     Type: AWS::CodeCommit::Repository
     Properties:
       RepositoryName: !Ref RepositoryName
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: CostCentre
+          Value: !Ref CostCentre
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Confidentiality
+          Value: !Ref Confidentiality
+        - Key: ApplicationID
+          Value: !Ref ApplicationID
 
 Outputs:
-  RepositoryCloneURLSSH:
-    Description: "SSH URL for cloning the repository"
-    Value: !GetAtt CodeCommitRepo.CloneUrlSsh
-    Export:
-      Name: !Sub "${AWS::StackName}-RepoCloneSSH"
-
   RepositoryCloneURLHTTP:
     Description: "HTTP URL for cloning the repository"
     Value: !GetAtt CodeCommitRepo.CloneUrlHttp
