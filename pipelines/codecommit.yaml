@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation Template for a vanilla CodeCommit repository
+
+Parameters:
+  RepositoryName:
+    Description: "The name of the CodeCommit repository to create"
+    Type: String
+
+Resources:
+  CodeCommitRepo:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Ref RepositoryName
+
+Outputs:
+  RepositoryCloneURLSSH:
+    Description: "SSH URL for cloning the repository"
+    Value: !GetAtt CodeCommitRepo.CloneUrlSsh
+    Export:
+      Name: !Sub "${AWS::StackName}-RepoCloneSSH"
+
+  RepositoryCloneURLHTTP:
+    Description: "HTTP URL for cloning the repository"
+    Value: !GetAtt CodeCommitRepo.CloneUrlHttp
+    Export:
+      Name: !Sub "${AWS::StackName}-RepoCloneHTTP"
