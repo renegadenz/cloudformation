@@ -1,0 +1,26 @@
+[
+  {
+    "ParameterKey": "RepositoryName",
+    "ParameterValue": "MyCustomRepo"
+  },
+  {
+    "ParameterKey": "Owner",
+    "ParameterValue": "Alice"
+  },
+  {
+    "ParameterKey": "CostCentre",
+    "ParameterValue": "CC56789"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "Prod"
+  },
+  {
+    "ParameterKey": "Confidentiality",
+    "ParameterValue": "Confidential"
+  },
+  {
+    "ParameterKey": "ApplicationID",
+    "ParameterValue": "AppID1234"
+  }
+]
