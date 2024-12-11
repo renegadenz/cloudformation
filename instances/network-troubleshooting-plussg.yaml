@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation template to create an EC2 instance with network troubleshooting tools and SSM access using Amazon Linux 2023"
+
+Parameters:
+  VPCId:
+    Type: "AWS::EC2::VPC::Id"
+    Description: "Select the VPC ID where the instance will be launched"
+
+  SubnetId:
+    Type: "AWS::EC2::Subnet::Id"
+    Description: "Select the Subnet ID where the instance will be launched"
+
+  AmazonLinuxAMI:
+    Type: "String"
+    Description: "Latest Amazon Linux 2023 AMI ID from AWS Marketplace"
+    Default: "ami-1234567890abcdef0"  # Replace this with the latest Amazon Linux 2023 AMI ID for your region
+
+  EC2SecurityGroup:
+    Type: "AWS::EC2::SecurityGroup::Id"
+    Description: "ID of an existing security group"
+    Default: ""
+    ConstraintDescription: "Must be a valid security group ID."
+
+Resources:
+  EC2Instance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: "t3a.nano"
+      ImageId: !Ref AmazonLinuxAMI
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup  # Uses the Security Group passed as a parameter
+      SubnetId: !Ref SubnetId
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          dnf update -y
+          dnf install -y nc telnet amazon-ssm-agent
+          systemctl enable amazon-ssm-agent
+          systemctl start amazon-ssm-agent
+          echo "Network tools and SSM agent installed" > /var/log/cloud-init-output.log
+      Tags:
+        - Key: "Name"
+          Value: "EC2-Network-Troubleshooting"
+
+  EC2InstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref SSMRole
+
+  SSMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "SSMAccess"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ssm:DescribeAssociation"
+                  - "ssm:GetDeployablePatchSnapshotForInstance"
+                  - "ssm:GetDocument"
+                  - "ssm:DescribeDocument"
+                  - "ssm:GetParameters"
+                  - "ssm:ListAssociations"
+                  - "ssm:ListInstanceAssociations"
+                  - "ssm:PutInventory"
+                  - "ssm:PutComplianceItems"
+                  - "ssm:UpdateInstanceInformation"
+                  - "ssmmessages:CreateControlChannel"
+                  - "ssmmessages:CreateDataChannel"
+                  - "ssmmessages:OpenControlChannel"
+                  - "ssmmessages:OpenDataChannel"
+                  - "ec2messages:AcknowledgeMessage"
+                  - "ec2messages:DeleteMessage"
+                  - "ec2messages:FailMessage"
+                  - "ec2messages:GetEndpoint"
+                  - "ec2messages:GetMessages"
+                  - "ec2messages:SendReply"
+                Resource: "*"
+
+Outputs:
+  InstanceId:
+    Description: "Instance ID of the EC2 instance"
+    Value: !Ref EC2Instance
