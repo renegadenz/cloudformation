@@ -8,6 +8,9 @@ Resources:
       ExecutionRoleArn: !GetAtt MwaaExecutionRole.Arn
       SourceBucketArn: !GetAtt MwaaS3Bucket.Arn
       DagS3Path: "dags/"
+      PluginsS3Path: "plugins/"
+      RequirementsS3Path: "requirements/requirements.txt"
+      StartupScriptS3Path: "scripts/startup.sh"
       NetworkConfiguration:
         SecurityGroupIds:
           - !Ref MwaaSecurityGroup
@@ -113,7 +116,17 @@ Resources:
               - Effect: Allow
                 Action:
                   - "s3:PutObject"
-                Resource: !Sub "${MwaaS3Bucket.Arn}/*"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "${MwaaS3Bucket.Arn}/*"
+                  - !Sub "${MwaaS3Bucket.Arn}"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
 
   LambdaDagInitializer:
     Type: AWS::Lambda::Function
@@ -129,7 +142,9 @@ Resources:
               s3 = boto3.client('s3')
               bucket_name = event['BucketName']
               s3.put_object(Bucket=bucket_name, Key='dags/placeholder.txt', Body='Placeholder file to ensure the directory exists')
-              return {"statusCode": 200, "body": "DAG folder initialized"}
+              s3.put_object(Bucket=bucket_name, Key='requirements/requirements.txt', Body='astronomer-cosmos==1.7.1\nsnowflake-connector-python\napache-airflow-providers-snowflake\nsnowflake-sqlalchemy\n')
+              s3.put_object(Bucket=bucket_name, Key='scripts/startup.sh', Body='#!/bin/sh\n\nexport AIRFLOW_HOME="/usr/local/airflow"\n\nexport DBT_VENV_PATH="${AIRFLOW_HOME}/dbt_venv"\nexport DBT_PROJECT_PATH="${AIRFLOW_HOME}/dags/dbt_data_platform"\n\nexport PIP_USER=false\n\npython3 -m venv "${DBT_VENV_PATH}"\n\n${DBT_VENV_PATH}/bin/pip install dbt-core==1.8.8\n${DBT_VENV_PATH}/bin/pip install dbt-snowflake\n\nexport PIP_USER=true\n')
+              return {"statusCode": 200, "body": "DAG folder, requirements, and startup script initialized"}
       Timeout: 60
       Environment:
         Variables:
