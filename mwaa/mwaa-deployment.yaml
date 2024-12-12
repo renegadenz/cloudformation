@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Resources:
+  MWAAEnvironment:
+    Type: AWS::MWAA::Environment
+    Properties:
+      Name: PrivateMWAAEnvironment
+      ExecutionRoleArn: !GetAtt MwaaExecutionRole.Arn
+      SourceBucketArn: !GetAtt MwaaS3Bucket.Arn
+      DagS3Path: "dags/"
+      NetworkConfiguration:
+        SecurityGroupIds:
+          - !Ref MwaaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+      WebserverAccessMode: PRIVATE_ONLY
+      EnvironmentClass: mw1.small
+      AirflowVersion: "2.6.3"
+      MaxWorkers: 5
+      MinWorkers: 1
+      Schedulers: 2
+      DependsOn:
+        - LambdaDagInitializer
+
+  MwaaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "airflow.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonMWAAServicePolicy
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+  LambdaDagInitializerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+                Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: LambdaS3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                Resource: !Sub "${MwaaS3Bucket.Arn}/*"
+
+  LambdaDagInitializer:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: InitializeDagFolder
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt LambdaDagInitializerRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          def handler(event, context):
+              s3 = boto3.client('s3')
+              bucket_name = event['BucketName']
+              s3.put_object(Bucket=bucket_name, Key='dags/placeholder.txt', Body='Placeholder file to ensure the directory exists')
+              return {"statusCode": 200, "body": "DAG folder initialized"}
+      Timeout: 60
+      Environment:
+        Variables:
+          BucketName: !Ref MwaaS3Bucket
+
+  LambdaDagInitializerInvoke:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt LambdaDagInitializer.Arn
+      BucketName: !Ref MwaaS3Bucket
+
+  MwaaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for MWAA environment"
+      VpcId: !Ref VPCId
+
+  MwaaS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "mwaa-dags-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Parameters:
+  VPCId:
+    Type: String
+    Description: VPC ID where MWAA will be deployed
+
+  PrivateSubnet1:
+    Type: String
+    Description: First private subnet ID
+
+  PrivateSubnet2:
+    Type: String
+    Description: Second private subnet ID
+
+Outputs:
+  MWAAEnvironmentName:
+    Description: Name of the MWAA environment
+    Value: !Ref MWAAEnvironment
+
+  MWAAExecutionRoleArn:
+    Description: Execution Role ARN for MWAA
+    Value: !GetAtt MwaaExecutionRole.Arn
