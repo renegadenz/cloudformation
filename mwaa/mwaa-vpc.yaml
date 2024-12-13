@@ -1,167 +1,214 @@
-AWSTemplateFormatVersion: "2010-09-09"
-     
-Parameters:
-   VpcCIDR:
-     Description: The IP range (CIDR notation) for this VPC
-     Type: String
-     Default: 10.192.0.0/16
-     
-   PrivateSubnet1CIDR:
-     Description: The IP range (CIDR notation) for the private subnet in the first Availability Zone
-     Type: String
-     Default: 10.192.10.0/24
-     
-   PrivateSubnet2CIDR:
-     Description: The IP range (CIDR notation) for the private subnet in the second Availability Zone
-     Type: String
-     Default: 10.192.11.0/24
-     
+AWSTemplateFormatVersion: '2010-09-09'
+
 Resources:
-   VPC:
-     Type: AWS::EC2::VPC
-     Properties:
-       CidrBlock: !Ref VpcCIDR
-       EnableDnsSupport: true
-       EnableDnsHostnames: true
-       Tags:
-        - Key: Name
-          Value: !Ref AWS::StackName
-     
-   RouteTable:
-     Type: AWS::EC2::RouteTable
-     Properties:
-       VpcId: !Ref VPC
-       Tags:
-        - Key: Name
-          Value: !Sub "${AWS::StackName}-route-table"
-     
-   PrivateSubnet1:
-     Type: AWS::EC2::Subnet
-     Properties:
-       VpcId: !Ref VPC
-       AvailabilityZone: !Select [ 0, !GetAZs  '' ]
-       CidrBlock: !Ref PrivateSubnet1CIDR
-       MapPublicIpOnLaunch: false
-       Tags:
-        - Key: Name
-          Value: !Sub "${AWS::StackName} Private Subnet (AZ1)"
-     
-   PrivateSubnet2:
-     Type: AWS::EC2::Subnet
-     Properties:
-       VpcId: !Ref VPC
-       AvailabilityZone: !Select [ 1, !GetAZs  '' ]
-       CidrBlock: !Ref PrivateSubnet2CIDR
-       MapPublicIpOnLaunch: false
-       Tags:
-        - Key: Name
-          Value: !Sub "${AWS::StackName} Private Subnet (AZ2)"
-     
-   PrivateSubnet1RouteTableAssociation:
-     Type: AWS::EC2::SubnetRouteTableAssociation
-     Properties:
-       RouteTableId: !Ref RouteTable
-       SubnetId: !Ref PrivateSubnet1
-     
-   PrivateSubnet2RouteTableAssociation:
-     Type: AWS::EC2::SubnetRouteTableAssociation
-     Properties:
-       RouteTableId: !Ref RouteTable
-       SubnetId: !Ref PrivateSubnet2
-     
-   S3VpcEndoint:
-     Type: AWS::EC2::VPCEndpoint
-     Properties:
-       ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
-       VpcEndpointType: Gateway
-       VpcId: !Ref VPC
-       RouteTableIds:
-        - !Ref RouteTable
-     
-   SecurityGroup:
-     Type: AWS::EC2::SecurityGroup
-     Properties:
-       VpcId: !Ref VPC
-       GroupDescription: Security Group for Amazon MWAA Environments to access VPC endpoints
-       GroupName: !Sub "${AWS::StackName}-mwaa-vpc-endpoints"
-   
-   SecurityGroupIngress:
-     Type: AWS::EC2::SecurityGroupIngress
-     Properties:
-       GroupId: !Ref SecurityGroup
-       IpProtocol: "-1"
-       SourceSecurityGroupId: !Ref SecurityGroup
-   
-   SqsVpcEndoint:
-     Type: AWS::EC2::VPCEndpoint
-     Properties:
-       ServiceName: !Sub "com.amazonaws.${AWS::Region}.sqs"
-       VpcEndpointType: Interface
-       VpcId: !Ref VPC
-       PrivateDnsEnabled: true
-       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-       SecurityGroupIds:
-        - !Ref SecurityGroup
-     
-   CloudWatchLogsVpcEndoint:
-     Type: AWS::EC2::VPCEndpoint
-     Properties:
-       ServiceName: !Sub "com.amazonaws.${AWS::Region}.logs"
-       VpcEndpointType: Interface
-       VpcId: !Ref VPC
-       PrivateDnsEnabled: true
-       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-       SecurityGroupIds:
-        - !Ref SecurityGroup
-     
-   CloudWatchMonitoringVpcEndoint:
-     Type: AWS::EC2::VPCEndpoint
-     Properties:
-       ServiceName: !Sub "com.amazonaws.${AWS::Region}.monitoring"
-       VpcEndpointType: Interface
-       VpcId: !Ref VPC
-       PrivateDnsEnabled: true
-       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-       SecurityGroupIds:
-        - !Ref SecurityGroup
-     
-   KmsVpcEndoint:
-     Type: AWS::EC2::VPCEndpoint
-     Properties:
-       ServiceName: !Sub "com.amazonaws.${AWS::Region}.kms"
-       VpcEndpointType: Interface
-       VpcId: !Ref VPC
-       PrivateDnsEnabled: true
-       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-       SecurityGroupIds:
-        - !Ref SecurityGroup
+  MWAAEnvironment:
+    Type: AWS::MWAA::Environment
+    Properties:
+      Name: PrivateMWAAEnvironment
+      ExecutionRoleArn: !GetAtt MwaaExecutionRole.Arn
+      SourceBucketArn: !GetAtt MwaaS3Bucket.Arn
+      DagS3Path: "dags/"
+      PluginsS3Path: "plugins/"
+      RequirementsS3Path: "requirements/requirements.txt"
+      StartupScriptS3Path: "scripts/startup.sh"
+      NetworkConfiguration:
+        SecurityGroupIds:
+          - !Ref MwaaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1
+        SubnetIds:
+          - !Ref PrivateSubnet2
+      WebserverAccessMode: PRIVATE_ONLY
+      EnvironmentClass: mw1.small
+      AirflowVersion: "2.6.3"
+      MaxWorkers: 5
+      MinWorkers: 1
+      Schedulers: 2
+    DependsOn:
+      - LambdaDagInitializerInvoke
 
+  MwaaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "airflow.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: MWAAExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "${MwaaS3Bucket.Arn}/*"
+                  - !Sub "${MwaaS3Bucket.Arn}"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:GetLogEvents"
+                  - "logs:GetLogGroupFields"
+                  - "logs:DescribeLogGroups"
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/mwaa/*"
+              - Effect: Allow
+                Action:
+                  - "logs:DescribeLogGroups"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "cloudwatch:PutMetricData"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "sqs:ChangeMessageVisibility"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                  - "sqs:GetQueueUrl"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:SendMessage"
+                Resource: !Sub "arn:aws:sqs:${AWS::Region}:*:airflow-celery-*"
+              - Effect: Allow
+                Action:
+                  - "ec2:CreateNetworkInterface"
+                  - "ec2:DescribeNetworkInterfaces"
+                  - "ec2:DeleteNetworkInterface"
+                  - "ec2:DescribeSubnets"
+                  - "ec2:DescribeRouteTables"
+                  - "ec2:DescribeSecurityGroups"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "kms:Decrypt"
+                  - "kms:Encrypt"
+                  - "kms:GenerateDataKey"
+                  - "kms:GenerateDataKey*"
+                  - "kms:DescribeKey"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "airflow:PublishMetrics"
+                Resource: !Sub "arn:aws:airflow:${AWS::Region}:${AWS::AccountId}:environment/PrivateMWAAEnvironment"
 
-Outputs:
-   VPC:
-     Description: A reference to the created VPC
-     Value: !Ref VPC
-     
-   MwaaSecurityGroupId:
-     Description: Associates the Security Group to the environment to allow access to the VPC endpoints 
-     Value: !Ref SecurityGroup
-     
-   PrivateSubnets:
-     Description: A list of the private subnets
-     Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
-     
-   PrivateSubnet1:
-     Description: A reference to the private subnet in the 1st Availability Zone
-     Value: !Ref PrivateSubnet1
-     
-   PrivateSubnet2:
-     Description: A reference to the private subnet in the 2nd Availability Zone
-     Value: !Ref PrivateSubnet2
+  LambdaDagInitializerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+                Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: LambdaS3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "${MwaaS3Bucket.Arn}/*"
+                  - !Sub "${MwaaS3Bucket.Arn}"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+
+  LambdaDagInitializer:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: InitializeDagFolder
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt LambdaDagInitializerRole.Arn
+      Code:
+        ZipFile: |
+          import os
+          import json
+          import boto3
+          import requests
+
+          def send_response(event, context, status, reason=None):
+              response_url = event['ResponseURL']
+              response_body = {
+                  'Status': status,
+                  'Reason': reason or f"See the details in CloudWatch Log Stream: {context.log_stream_name}",
+                  'PhysicalResourceId': context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': {}
+              }
+              json_response_body = json.dumps(response_body)
+              headers = {'content-type': '', 'content-length': str(len(json_response_body))}
+              response = requests.put(response_url, data=json_response_body, headers=headers)
+              print(f"Response to CloudFormation: {response.status_code}, {response.text}")
+
+          def handler(event, context):
+              print(f"Received event: {json.dumps(event)}")
+              try:
+                  s3 = boto3.client('s3')
+                  bucket_name = os.environ.get('BucketName')
+                  if not bucket_name:
+                      raise ValueError("BucketName environment variable is not set.")
+                  s3.put_object(Bucket=bucket_name, Key='dags/placeholder.txt', Body='Placeholder file to ensure the directory exists')
+                  s3.put_object(Bucket=bucket_name, Key='requirements/requirements.txt', Body='astronomer-cosmos==1.7.1\nsnowflake-connector-python\napache-airflow-providers-snowflake\nsnowflake-sqlalchemy\n')
+                  s3.put_object(Bucket=bucket_name, Key='scripts/startup.sh', Body='#!/bin/sh\n\nexport AIRFLOW_HOME="/usr/local/airflow"\n\nexport DBT_VENV_PATH="${AIRFLOW_HOME}/dbt_venv"\nexport DBT_PROJECT_PATH="${AIRFLOW_HOME}/dags/dbt_data_platform"\n\nexport PIP_USER=false\n\npython3 -m venv "${DBT_VENV_PATH}"\n\n${DBT_VENV_PATH}/bin/pip install dbt-core==1.8.8\n${DBT_VENV_PATH}/bin/pip install dbt-snowflake\n\nexport PIP_USER=true\n')
+                  send_response(event, context, "SUCCESS")
+              except Exception as e:
+                  print(f"Error occurred: {e}")
+                  send_response(event, context, "FAILED", str(e))
+      Timeout: 60
+      Environment:
+        Variables:
+          BucketName: !Ref MwaaS3Bucket
+
+  LambdaDagInitializerInvoke:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt LambdaDagInitializer.Arn
+      BucketName: !Ref MwaaS3Bucket
+
+  MwaaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for MWAA environment"
+      VpcId: !Ref VPCId
+
+  MwaaS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "mwaa-dags-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Parameters:
+  VPCId:
+    Type: String
+    Description: VPC ID where MWAA will be deployed
+
+  PrivateSubnet1:
+    Type: String
+    Description: First private subnet ID
+
+  PrivateSubnet2:
+    Type: String
+    Description
