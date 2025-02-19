@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Deploy a Public Network Load Balancer with HTTPS and ACM Certificate"
+
+Parameters:
+  VpcId:
+    Type: String
+    Description: "VPC ID where the NLB will be deployed"
+  
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "List of public subnet IDs for the NLB"
+
+  InstanceIds:
+    Type: List<AWS::EC2::Instance::Id>
+    Description: "List of EC2 instance IDs to attach to the target group"
+
+  CertificateArn:
+    Type: String
+    Description: "ARN of the existing ACM certificate for HTTPS (443)"
+
+Resources:
+  # Security Group for the Load Balancer
+  NlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow inbound traffic to NLB on HTTPS"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"  # Open to the internet (adjust as needed)
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+
+  # Target Group for EC2 Instances
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Protocol: TCP
+      Port: 443
+      TargetType: instance
+      Targets:
+        - Id: !Select [0, !Ref InstanceIds]  # Attaching first instance (modify if needed)
+      HealthCheckProtocol: TCP
+      HealthCheckPort: traffic-port
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+
+  # Network Load Balancer (Public)
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: "Public-NLB"
+      Scheme: internet-facing
+      Type: network
+      Subnets: !Ref SubnetIds
+      LoadBalancerAttributes:
+        - Key: "deletion_protection.enabled"
+          Value: "false"
+
+  # Listener on Port 443 with ACM Certificate
+  NlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Protocol: TLS
+      Port: 443
+      SslPolicy: "ELBSecurityPolicy-2016-08"  # AWS Recommended TLS Policy
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+Outputs:
+  LoadBalancerDNS:
+    Description: "The DNS name of the NLB"
+    Value: !GetAtt NetworkLoadBalancer.DNSName
