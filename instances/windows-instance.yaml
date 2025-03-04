@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Deploy a Windows Server 2019 instance with Fleet Manager access"
+
+Parameters:
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: "Select a subnet for the instance"
+
+Resources:
+  # Security Group allowing access via SSM
+  WindowsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group for Windows instance allowing Fleet Manager access"
+      VpcId: !Ref SubnetId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: "0.0.0.0/0"  # RDP can be restricted if needed (Fleet Manager should be used instead)
+
+  # Windows Instance
+  WindowsInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: "t3.medium"
+      ImageId: !Sub "{{resolve:ssm:/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base}}"
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref WindowsSecurityGroup
+      IamInstanceProfile: !Ref SSMInstanceProfile
+      Tags:
+        - Key: Name
+          Value: Windows-Server-2019
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          # Enable RDP via Fleet Manager (SSM)
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          </powershell>
+
+  # IAM Role for SSM Access
+  SSMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: "/"
+
+  # Instance Profile for SSM
+  SSMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref SSMRole
+
+Outputs:
+  InstanceId:
+    Description: "ID of the Windows instance"
+    Value: !Ref WindowsInstance
+  InstancePublicDNS:
+    Description: "Public DNS of the Windows instance"
+    Value: !GetAtt WindowsInstance.PublicDnsName
