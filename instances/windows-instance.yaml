@@ -1,23 +1,22 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Deploy a Windows Server 2019 instance with Fleet Manager access"
+Description: "Deploy a Windows Server 2019 instance with Fleet Manager access, without direct RDP exposure"
 
 Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "Select the VPC for the instance"
+
   SubnetId:
     Type: AWS::EC2::Subnet::Id
     Description: "Select a subnet for the instance"
 
 Resources:
-  # Security Group allowing access via SSM
+  # Security Group allowing ONLY SSM access (No direct RDP)
   WindowsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Security Group for Windows instance allowing Fleet Manager access"
-      VpcId: !Ref SubnetId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 3389
-          ToPort: 3389
-          CidrIp: "0.0.0.0/0"  # RDP can be restricted if needed (Fleet Manager should be used instead)
+      GroupDescription: "Security Group for Windows instance allowing Fleet Manager access only"
+      VpcId: !Ref VpcId
 
   # Windows Instance
   WindowsInstance:
@@ -35,9 +34,8 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           <powershell>
-          # Enable RDP via Fleet Manager (SSM)
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          # Ensure SSM agent is running (Required for Fleet Manager)
+          Restart-Service AmazonSSMAgent
           </powershell>
 
   # IAM Role for SSM Access
