@@ -31,13 +31,6 @@ Resources:
       Tags:
         - Key: Name
           Value: Windows-Server-2019
-      UserData:
-        Fn::Base64: !Sub |
-          <powershell>
-          # Ensure SSM agent is running (Required for Fleet Manager)
-          Restart-Service AmazonSSMAgent
-          </powershell>
-
   # IAM Role for SSM Access
   SSMRole:
     Type: AWS::IAM::Role
