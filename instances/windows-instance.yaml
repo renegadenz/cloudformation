@@ -11,7 +11,7 @@ Parameters:
     Description: "Select a subnet for the instance"
   InstanceName:
     Type: String
-    Description: "Name of the instance
+    Description: "Name of the instance"
 Resources:
   # Security Group allowing ONLY SSM access (No direct RDP)
   WindowsSecurityGroup:
