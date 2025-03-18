@@ -1,32 +1,21 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Create IAM User, IAM Group, attach a policy, and store credentials in AWS Secrets Manager."
+Description: "Create an IAM Group with a policy, add an IAM User to the group, and store credentials in AWS Secrets Manager."
 
 Parameters:
-  UserName:
+  IAMName:
     Type: String
-    Description: "IAM username to create"
-  GroupName:
-    Type: String
-    Description: "IAM group name to create"
-  SecretName:
-    Type: String
-    Description: "Name of the secret to store IAM user credentials"
+    Description: "Base name used for IAM user and group."
 
 Resources:
-  IAMUser:
-    Type: "AWS::IAM::User"
-    Properties:
-      UserName: !Ref UserName
-
   IAMGroup:
     Type: "AWS::IAM::Group"
     Properties:
-      GroupName: !Ref GroupName
+      GroupName: !Ref IAMName
 
   IAMPolicy:
     Type: "AWS::IAM::Policy"
     Properties:
-      PolicyName: "example-policy"
+      PolicyName: !Sub "${IAMName}-policy"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -43,34 +32,46 @@ Resources:
       Groups:
         - !Ref IAMGroup
 
+  IAMUser:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: !Ref IAMName
+
   IAMGroupMembership:
     Type: "AWS::IAM::UserToGroupAddition"
     Properties:
-      GroupName: !Ref GroupName
+      GroupName: !Ref IAMGroup
       Users:
-        - !Ref UserName
+        - !Ref IAMUser
 
   IAMAccessKey:
     Type: "AWS::IAM::AccessKey"
     Properties:
-      UserName: !Ref UserName
+      UserName: !Ref IAMUser
 
   SecretManagerIAMUserCredentials:
     Type: "AWS::SecretsManager::Secret"
     Properties:
-      Name: !Ref SecretName
-      Description: "Stores IAM user's access key and secret key"
+      Name: !Ref IAMName
+      Description: "Stores IAM user's access key and secret key."
       SecretString: 
-        Fn::Sub: |
-          {
-            "AccessKeyId": "${IAMAccessKey}",
-            "SecretAccessKey": "${IAMAccessKey.SecretAccessKey}"
-          }
+        Fn::Sub: 
+          - |
+            {
+              "AccessKeyId": "${AccessKeyId}",
+              "SecretAccessKey": "${SecretAccessKey}"
+            }
+          - AccessKeyId: !Ref IAMAccessKey
+            SecretAccessKey: !GetAtt IAMAccessKey.SecretAccessKey
 
 Outputs:
   IAMUserName:
     Description: "The created IAM User"
     Value: !Ref IAMUser
+
+  IAMGroupName:
+    Description: "The IAM Group to which the user is assigned"
+    Value: !Ref IAMGroup
 
   SecretARN:
     Description: "ARN of the created Secret in AWS Secrets Manager"
