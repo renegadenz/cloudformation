@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Deploy a Windows Server 2025 instance with Fleet Manager access, using a custom IAM role with dynamically assigned permissions."
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "Select the VPC for the instance"
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: "Select a subnet for the instance"
+
+  InstanceName:
+    Type: String
+    Description: "Name of the instance"
+
+Resources:
+  # Security Group allowing ONLY SSM access (No direct RDP)
+  WindowsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group for Windows instance allowing Fleet Manager access only"
+      VpcId: !Ref VpcId
+
+  # Windows Instance
+  WindowsInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: "t3.medium"
+      ImageId: !Sub "{{resolve:ssm:/aws/service/ami-windows-latest/Windows_Server-2025-English-Full-Base}}"
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref WindowsSecurityGroup
+      IamInstanceProfile: !Ref SSMInstanceProfile
+      Tags:
+        - Key: Name
+          Value: !Ref InstanceName
+
+  # IAM Role for Fleet Manager with Dynamic Permissions
+  FleetManagerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore  # SSM Basic Permissions
+      Policies:
+        - PolicyName: FleetManagerCustomPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: "EC2"
+                Effect: "Allow"
+                Action:
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                  - ec2:DescribeInstances
+                  - ec2:DescribeTags
+                Resource: "*"
+
+              - Sid: "General"
+                Effect: "Allow"
+                Action:
+                  - ssm:AddTagsToResource
+                  - ssm:DescribeInstanceAssociationsStatus
+                  - ssm:DescribeInstancePatches
+                  - ssm:DescribeInstancePatchStates
+                  - ssm:DescribeInstanceProperties
+                  - ssm:GetCommandInvocation
+                  - ssm:GetServiceSetting
+                  - ssm:GetInventorySchema
+                  - ssm:ListComplianceItems
+                  - ssm:ListInventoryEntries
+                  - ssm:ListTagsForResource
+                  - ssm:ListCommandInvocations
+                  - ssm:ListAssociations
+                  - ssm:RemoveTagsFromResource
+                Resource: "*"
+
+              - Sid: "DefaultHostManagement"
+                Effect: "Allow"
+                Action:
+                  - ssm:ResetServiceSetting
+                  - ssm:UpdateServiceSetting
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:servicesetting/ssm/managed-instance/default-ec2-instance-management-role"
+
+              - Effect: "Allow"
+                Action:
+                  - iam:PassRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/service-role/AWSSystemsManagerDefaultEC2InstanceManagementRole"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService:
+                      - "ssm.amazonaws.com"
+
+              - Sid: "SendCommand"
+                Effect: "Allow"
+                Action:
+                  - ssm:GetDocument
+                  - ssm:SendCommand
+                  - ssm:StartSession
+                Resource:
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:managed-instance/*"
+                  - !Sub "arn:aws:ssm:${AWS::Region}::document/SSM-SessionManagerRunShell"
+                  - !Sub "arn:aws:ssm:${AWS::Region}::document/AWS-PasswordReset"
+                  - !Sub "arn:aws:ssm:${AWS::Region}::document/AWSFleetManager-*"
+
+              - Sid: "TerminateSession"
+                Effect: "Allow"
+                Action:
+                  - ssm:TerminateSession
+                Resource: "*"
+                Condition:
+                  StringLike:
+                    "ssm:resourceTag/aws:ssmmessages:session-id":
+                      - "${aws:userid}"
+
+  # Instance Profile for Fleet Manager Role
+  SSMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref FleetManagerRole
+
+Outputs:
+  InstanceId:
+    Description: "ID of the Windows instance"
+    Value: !Ref WindowsInstance
+
+  InstancePublicDNS:
+    Description: "Public DNS of the Windows instance"
+    Value: !GetAtt WindowsInstance.PublicDnsName
