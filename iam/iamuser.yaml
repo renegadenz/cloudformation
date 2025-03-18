@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create IAM User, IAM Group, and attach a policy with describe permissions"
+
+Parameters:
+  UserName:
+    Type: String
+    Description: "IAM username to create"
+  GroupName:
+    Type: String
+    Description: "IAM group name to create"
+
+Resources:
+  IAMUser:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: !Ref UserName
+
+  IAMGroup:
+    Type: "AWS::IAM::Group"
+    Properties:
+      GroupName: !Ref GroupName
+
+  IAMPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: "example-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "elasticloadbalancing:DescribeLoadBalancers"
+              - "ec2:DescribeInstances"
+              - "ec2:DescribeInstanceTypes"
+              - "ec2:DescribeInstanceTypeOfferings"
+              - "ec2:DescribeRegions"
+              - "ec2:DescribeInstanceStatus"
+              - "ec2:DescribeImages"
+            Resource: "*"
+      Groups:
+        - !Ref IAMGroup
+
+  IAMGroupMembership:
+    Type: "AWS::IAM::UserToGroupAddition"
+    Properties:
+      GroupName: !Ref GroupName
+      Users:
+        - !Ref UserName
