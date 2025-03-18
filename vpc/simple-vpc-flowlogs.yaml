@@ -79,45 +79,107 @@ Resources:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
 
-  # IAM Role for VPC Flow Logs
-  FlowLogRole:
-    Type: AWS::IAM::Role
+  # Elastic IPs for NAT Gateways
+  NatEIPA:
+    Type: AWS::EC2::EIP
     Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: 'sts:AssumeRole'
-      Policies:
-        - PolicyName: !Sub "${VpcName}-VPCFlowLogPolicy"
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: '*'
+      Domain: vpc
+  
+  NatEIPB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
 
-  # CloudWatch Log Group for VPC Flow Logs
-  FlowLogGroup:
-    Type: AWS::Logs::LogGroup
+  # NAT Gateways
+  NatGatewayA:
+    Type: AWS::EC2::NatGateway
     Properties:
-      LogGroupName: !Sub "/aws/vpc-flow-logs/${VpcName}"
-      RetentionInDays: 30  # Adjust as needed
+      SubnetId: !Ref PublicSubnetA
+      AllocationId: !GetAtt NatEIPA.AllocationId
+      Tags:
+        - Key: Name
+          Value: !Sub "${VpcName}-NatGatewayA"
 
-  # VPC Flow Logs
-  VPCFlowLog:
-    Type: AWS::EC2::FlowLog
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
     Properties:
-      DeliverLogsPermissionArn: !GetAtt FlowLogRole.Arn
-      LogGroupName: !Ref FlowLogGroup
-      ResourceId: !Ref VPC
-      ResourceType: VPC
-      TrafficType: ALL
+      SubnetId: !Ref PublicSubnetB
+      AllocationId: !GetAtt NatEIPB.AllocationId
+      Tags:
+        - Key: Name
+          Value: !Sub "${VpcName}-NatGatewayB"
+
+  # Route Tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${VpcName}-PublicRouteTable"
+
+  PrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${VpcName}-PrivateRouteTableA"
+
+  PrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${VpcName}-PrivateRouteTableB"
+
+  # Routes
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref InternetGateway
+
+  PrivateRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NatGatewayA
+
+  PrivateRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NatGatewayB
+
+  # Route Table Associations
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTableA
+
+  PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTableB
 
 Outputs:
   VPCId:
