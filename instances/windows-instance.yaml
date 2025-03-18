@@ -9,7 +9,9 @@ Parameters:
   SubnetId:
     Type: AWS::EC2::Subnet::Id
     Description: "Select a subnet for the instance"
-
+  InstanceName:
+    Type: String
+    Description: "Name of the instance
 Resources:
   # Security Group allowing ONLY SSM access (No direct RDP)
   WindowsSecurityGroup:
@@ -30,7 +32,7 @@ Resources:
       IamInstanceProfile: !Ref SSMInstanceProfile
       Tags:
         - Key: Name
-          Value: Windows-Server-2019
+          Value: !Ref InstanceName
   # IAM Role for SSM Access
   SSMRole:
     Type: AWS::IAM::Role
