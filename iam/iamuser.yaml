@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Create IAM User, IAM Group, and attach a policy with describe permissions"
+Description: "Create IAM User, IAM Group, attach a policy, and store credentials in AWS Secrets Manager."
 
 Parameters:
   UserName:
@@ -8,6 +8,9 @@ Parameters:
   GroupName:
     Type: String
     Description: "IAM group name to create"
+  SecretName:
+    Type: String
+    Description: "Name of the secret to store IAM user credentials"
 
 Resources:
   IAMUser:
@@ -46,3 +49,29 @@ Resources:
       GroupName: !Ref GroupName
       Users:
         - !Ref UserName
+
+  IAMAccessKey:
+    Type: "AWS::IAM::AccessKey"
+    Properties:
+      UserName: !Ref UserName
+
+  SecretManagerIAMUserCredentials:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: !Ref SecretName
+      Description: "Stores IAM user's access key and secret key"
+      SecretString: 
+        Fn::Sub: |
+          {
+            "AccessKeyId": "${IAMAccessKey}",
+            "SecretAccessKey": "${IAMAccessKey.SecretAccessKey}"
+          }
+
+Outputs:
+  IAMUserName:
+    Description: "The created IAM User"
+    Value: !Ref IAMUser
+
+  SecretARN:
+    Description: "ARN of the created Secret in AWS Secrets Manager"
+    Value: !Ref SecretManagerIAMUserCredentials
