@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create an IAM Group with a policy, add an IAM User to the group, and store credentials in AWS Secrets Manager."
+
+Parameters:
+  IAMName:
+    Type: String
+    Description: "Base name used for IAM user and group."
+  S3BucketName:
+    Type: String
+    Description: "Name of the S3 bucket to grant access to."
+
+Resources:
+  IAMGroup:
+    Type: "AWS::IAM::Group"
+    Properties:
+      GroupName: !Ref IAMName
+
+  IAMPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: !Sub "${IAMName}-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "s3:ListBucket"
+            Resource: !Sub "arn:aws:s3:::${S3BucketName}"
+          - Effect: "Allow"
+            Action:
+              - "s3:GetObject"
+              - "s3:PutObject"
+            Resource: !Sub "arn:aws:s3:::${S3BucketName}/*"
+      Groups:
+        - !Ref IAMGroup
+
+  IAMUser:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: !Ref IAMName
+
+  IAMGroupMembership:
+    Type: "AWS::IAM::UserToGroupAddition"
+    Properties:
+      GroupName: !Ref IAMGroup
+      Users:
+        - !Ref IAMUser
+
+  IAMAccessKey:
+    Type: "AWS::IAM::AccessKey"
+    Properties:
+      UserName: !Ref IAMUser
+
+  SecretManagerIAMUserCredentials:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: !Ref IAMName
+      Description: "Stores IAM user's access key and secret key."
+      SecretString: 
+        Fn::Sub: 
+          - |
+            {
+              "AccessKeyId": "${AccessKeyId}",
+              "SecretAccessKey": "${SecretAccessKey}"
+            }
+          - AccessKeyId: !Ref IAMAccessKey
+            SecretAccessKey: !GetAtt IAMAccessKey.SecretAccessKey
+
+Outputs:
+  IAMUserName:
+    Description: "The created IAM User"
+    Value: !Ref IAMUser
+
+  IAMGroupName:
+    Description: "The IAM Group to which the user is assigned"
+    Value: !Ref IAMGroup
+
+  SecretARN:
+    Description: "ARN of the created Secret in AWS Secrets Manager"
+    Value: !Ref SecretManagerIAMUserCredentials
