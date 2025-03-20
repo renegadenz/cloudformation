@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Transfer Family (FTP/SFTP) to S3 with Secrets Manager Authentication
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Name of the S3 bucket where files will be stored
+
+  TransferUserName:
+    Type: String
+    Default: "ftpuser"
+    Description: The username for the FTP/SFTP server
+
+Resources:
+  ## IAM Role for AWS Transfer Family ##
+  TransferFamilyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: TransferFamilyS3AccessRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: transfer.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: TransferFamilyS3AccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::${BucketName}"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::${BucketName}/*"
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref TransferUserSecret
+
+  ## Store FTP User Credentials in Secrets Manager ##
+  TransferUserSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "TransferUserSecret-${AWS::StackName}"
+      Description: "Stores FTP/SFTP user credentials"
+      SecretString: !Sub |
+        {
+          "Username": "${TransferUserName}",
+          "Password": "ChangeMeAfterDeployment"
+        }
+
+  ## AWS Transfer Family Server ##
+  TransferServer:
+    Type: AWS::Transfer::Server
+    Properties:
+      EndpointType: PUBLIC
+      IdentityProviderType: SERVICE_MANAGED
+      Protocols:
+        - FTP
+        - SFTP
+      Domain: S3
+      LoggingRole: !GetAtt TransferFamilyRole.Arn
+
+  ## AWS Transfer Family User (Retrieves Credentials from Secrets Manager) ##
+  TransferUser:
+    Type: AWS::Transfer::User
+    Properties:
+      ServerId: !Ref TransferServer
+      UserName: !Ref TransferUserName
+      HomeDirectory: !Sub "/${BucketName}"
+      Role: !GetAtt TransferFamilyRole.Arn
+      SecretsManagerSecret: !Ref TransferUserSecret
+
+Outputs:
+  TransferServerId:
+    Description: The AWS Transfer Family Server ID
+    Value: !Ref TransferServer
+
+  FTPServerEndpoint:
+    Description: The FTP/SFTP Endpoint
+    Value: !Sub "${TransferServer.ServerId}.server.transfer.${AWS::Region}.amazonaws.com"
+
+  IAMRoleArn:
+    Description: IAM Role for AWS Transfer Family
+    Value: !GetAtt TransferFamilyRole.Arn
+
+  SecretArn:
+    Description: ARN of the Secrets Manager entry
+    Value: !Ref TransferUserSecret
