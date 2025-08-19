@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route 53 Resolver rule to forward a domain (or suffix) to public DNS via an outbound endpoint
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC where the rule will be associated
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Two subnets in different AZs for the outbound endpoint ENIs
+  EndpointSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group for the outbound endpoint ENIs (must allow egress UDP/TCP 53)
+  ForwardDomain:
+    Type: String
+    Description: Domain name or exact FQDN to forward (suffix-based match)
+  TargetDnsIps:
+    Type: CommaDelimitedList
+    Default: 8.8.8.8,1.1.1.1
+    Description: Public DNS resolvers to forward to
+
+Resources:
+  OutboundEndpoint:
+    Type: AWS::Route53Resolver::ResolverEndpoint
+    Properties:
+      Name: out-public-dns
+      Direction: OUTBOUND
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroupId
+      IpAddresses:
+        - SubnetId: !Select [0, !Ref SubnetIds]
+        - SubnetId: !Select [1, !Ref SubnetIds]
+
+  ForwardRule:
+    Type: AWS::Route53Resolver::ResolverRule
+    Properties:
+      DomainName: !Ref ForwardDomain
+      Name: !Sub forward-${ForwardDomain}
+      RuleType: FORWARD
+      ResolverEndpointId: !Ref OutboundEndpoint
+      TargetIps:
+        - Ip: !Select [0, !Ref TargetDnsIps]
+          Port: 53
+        - Ip: !Select [1, !Ref TargetDnsIps]
+          Port: 53
+
+  AssocToVpc:
+    Type: AWS::Route53Resolver::ResolverRuleAssociation
+    Properties:
+      Name: !Sub assoc-${ForwardDomain}
+      ResolverRuleId: !Ref ForwardRule
+      VPCId: !Ref VpcId
+
+Outputs:
+  OutboundEndpointId:
+    Value: !Ref OutboundEndpoint
+  ResolverRuleId:
+    Value: !Ref ForwardRule
