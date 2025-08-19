@@ -1,26 +1,45 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Route 53 Resolver outbound endpoint and rule to forward a domain to public DNS
+Description: Route 53 Resolver outbound endpoint + forwarding rule using 3 AZs
 
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
-    Description: The VPC where the rule will be associated
-  SubnetIds:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: Two subnets in different AZs for the outbound endpoint ENIs
+    Description: VPC to associate the resolver rule with
+  SubnetIdA:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet in AZ1 for the outbound endpoint ENI
+  SubnetIdB:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet in AZ2 for the outbound endpoint ENI
+  SubnetIdC:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet in AZ3 for the outbound endpoint ENI
   ForwardDomain:
     Type: String
-    Description: Domain name or exact FQDN to forward (suffix-based match)
+    Description: Domain (suffix) or exact FQDN to forward
+  RuleName:
+    Type: String
+    Description: Friendly name for the resolver rule (no dots)
+    AllowedPattern: "(?!^[0-9]+$)([a-zA-Z0-9\\-_\\' ]+)"
+    ConstraintDescription: "Use letters, numbers, spaces, hyphens, underscores or apostrophes; not all digits."
   TargetDnsIps:
     Type: CommaDelimitedList
     Default: 8.8.8.8,1.1.1.1
-    Description: Public DNS resolvers to forward to
+    Description: Public DNS resolvers to forward to (comma-separated)
+  CreateIpv6Egress:
+    Type: String
+    AllowedValues: ["true","false"]
+    Default: "false"
+    Description: Add IPv6 egress rules if dual-stack
+
+Conditions:
+  UseIpv6: !Equals [!Ref CreateIpv6Egress, "true"]
 
 Resources:
   OutboundEndpointSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group for Route 53 Resolver outbound endpoint
+      GroupDescription: SG for Route 53 Resolver outbound endpoint
       VpcId: !Ref VpcId
       SecurityGroupEgress:
         - IpProtocol: udp
@@ -31,6 +50,20 @@ Resources:
           FromPort: 53
           ToPort: 53
           CidrIp: 0.0.0.0/0
+        - !If
+          - UseIpv6
+          - IpProtocol: udp
+            FromPort: 53
+            ToPort: 53
+            CidrIpv6: ::/0
+          - !Ref "AWS::NoValue"
+        - !If
+          - UseIpv6
+          - IpProtocol: tcp
+            FromPort: 53
+            ToPort: 53
+            CidrIpv6: ::/0
+          - !Ref "AWS::NoValue"
 
   OutboundEndpoint:
     Type: AWS::Route53Resolver::ResolverEndpoint
@@ -40,14 +73,15 @@ Resources:
       SecurityGroupIds:
         - !Ref OutboundEndpointSG
       IpAddresses:
-        - SubnetId: !Select [0, !Ref SubnetIds]
-        - SubnetId: !Select [1, !Ref SubnetIds]
+        - SubnetId: !Ref SubnetIdA
+        - SubnetId: !Ref SubnetIdB
+        - SubnetId: !Ref SubnetIdC
 
   ForwardRule:
     Type: AWS::Route53Resolver::ResolverRule
     Properties:
+      Name: !Ref RuleName
       DomainName: !Ref ForwardDomain
-      Name: !Sub forward-${ForwardDomain}
       RuleType: FORWARD
       ResolverEndpointId: !Ref OutboundEndpoint
       TargetIps:
@@ -59,7 +93,7 @@ Resources:
   AssocToVpc:
     Type: AWS::Route53Resolver::ResolverRuleAssociation
     Properties:
-      Name: !Sub assoc-${ForwardDomain}
+      Name: !Sub assoc-${RuleName}
       ResolverRuleId: !Ref ForwardRule
       VPCId: !Ref VpcId
 
