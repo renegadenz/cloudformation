@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Route 53 Resolver rule to forward a domain (or suffix) to public DNS via an outbound endpoint
+Description: Route 53 Resolver outbound endpoint and rule to forward a domain to public DNS
 
 Parameters:
   VpcId:
@@ -8,9 +8,6 @@ Parameters:
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Two subnets in different AZs for the outbound endpoint ENIs
-  EndpointSecurityGroupId:
-    Type: AWS::EC2::SecurityGroup::Id
-    Description: Security group for the outbound endpoint ENIs (must allow egress UDP/TCP 53)
   ForwardDomain:
     Type: String
     Description: Domain name or exact FQDN to forward (suffix-based match)
@@ -20,13 +17,28 @@ Parameters:
     Description: Public DNS resolvers to forward to
 
 Resources:
+  OutboundEndpointSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Route 53 Resolver outbound endpoint
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 0.0.0.0/0
+
   OutboundEndpoint:
     Type: AWS::Route53Resolver::ResolverEndpoint
     Properties:
       Name: out-public-dns
       Direction: OUTBOUND
       SecurityGroupIds:
-        - !Ref EndpointSecurityGroupId
+        - !Ref OutboundEndpointSG
       IpAddresses:
         - SubnetId: !Select [0, !Ref SubnetIds]
         - SubnetId: !Select [1, !Ref SubnetIds]
@@ -56,3 +68,5 @@ Outputs:
     Value: !Ref OutboundEndpoint
   ResolverRuleId:
     Value: !Ref ForwardRule
+  OutboundSGId:
+    Value: !Ref OutboundEndpointSG
